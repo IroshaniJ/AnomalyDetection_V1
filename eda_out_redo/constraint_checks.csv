@@ -1,0 +1,5 @@
+rule,count,fraction_%
+Main_Engine_Power_kW < 0,23,0.05314232902033271
+"Trim_m outside [-5,5]",19,0.04390018484288355
+DRAFTFWD <= 0,18,0.041589648798521256
+Avg_draft_m <= 0,18,0.041589648798521256

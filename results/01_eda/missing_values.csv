@@ -1,0 +1,16 @@
+,missing_count,missing_pct
+Date,0,0.0
+GPSSpeed_kn,0,0.0
+GPS_LAT,0,0.0
+GPS_LON,0,0.0
+TrueWindSpeed_kn,0,0.0
+TrueWindDirection_Deg,0,0.0
+RelWindSpeed_kn,0,0.0
+RelWindDirection_Deg,0,0.0
+Main_Engine_Power_kW,0,0.0
+DRAFTAFT,0,0.0
+DRAFTFWD,0,0.0
+Speed_rpm,0,0.0
+Fuel_Consumption_t_per_day,0,0.0
+Avg_draft_m,0,0.0
+Trim_m,0,0.0

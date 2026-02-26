@@ -1,0 +1,31 @@
+======================================================================
+TWINSHIP ANOMALY DETECTION — PIPELINE REPORT
+======================================================================
+
+Total records:        43,280
+Total anomalies:      2,192  (5.06%)
+Date range:           2020-03-01 00:00:30.874000+00:00  →  2020-03-31 23:59:50.360000+00:00
+
+── Anomaly Type Breakdown ──────────────────────────
+
+        anomaly_type  count  avg_score  min_score  max_score                       first_seen                        last_seen  reviewed_count
+multivariate_outlier   4300   0.207286   0.018759   2.634156 2020-03-01 17:22:49.597000+00:00 2020-03-31 15:32:34.914000+00:00               0
+      negative_power     46   0.560207   0.052650   1.074622 2020-03-03 08:02:08.944000+00:00 2020-03-27 11:50:46.220000+00:00               0
+        extreme_trim     38   0.250762   0.025503   0.487943 2020-03-01 09:54:48.354000+00:00 2020-03-28 05:41:20.842000+00:00               0
+
+── Anomalies per Cluster ───────────────────────────
+
+          cluster_name   n  avg_score
+  Mode_0_AtRest_Loaded 446   0.266871
+      Mode_1_HighSpeed 952   0.220528
+    Mode_2_MediumSpeed 347   0.294275
+Mode_3_AtRest_Unloaded 429   0.064366
+               Unknown  18        NaN
+
+── Detection Run History ───────────────────────────
+
+             run_timestamp    model_version  total_records  anomalies_detected
+2026-02-26T12:58:43.758543 clustered_svd_v1          43280                2192
+2026-02-25T13:10:06.618827 clustered_svd_v1          43280                2192
+
+======================================================================

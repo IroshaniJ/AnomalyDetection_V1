@@ -1,0 +1,5 @@
+check,count,pct
+Negative engine power (< 0 kW),23,0.0531
+Extreme trim (|Trim_m| > 5 m),19,0.0439
+Invalid DRAFTFWD sentinel (-9999),18,0.0416
+Invalid Avg_draft_m (<= 0 m),18,0.0416

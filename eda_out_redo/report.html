@@ -1,0 +1,244 @@
+<html><head><meta charset='utf-8'><title>EDA report (redo)</title>
+<style>body{font-family:system-ui,Segoe UI,Arial;max-width:1100px;margin:24px auto;padding:0 16px;} h1,h2{margin-top:28px;} table{border-collapse:collapse;width:100%;} th,td{border:1px solid #ddd;padding:6px 8px;font-size:13px;} th{background:#f5f5f5;text-align:left;}</style>
+</head><body>
+<h1>EDA report (redo) — data1.csv</h1>
+<p><b>Rows:</b> 43,280 &nbsp;&nbsp; <b>Columns:</b> 15 &nbsp;&nbsp; <b>Memory:</b> 4.95 MB</p>
+<h2>Basic metrics</h2>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>metric</th>
+      <th>value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>rows</td>
+      <td>43280.00</td>
+    </tr>
+    <tr>
+      <td>columns</td>
+      <td>15.00</td>
+    </tr>
+    <tr>
+      <td>memory_MB</td>
+      <td>4.95</td>
+    </tr>
+    <tr>
+      <td>duplicate_rows</td>
+      <td>0.00</td>
+    </tr>
+    <tr>
+      <td>columns_with_missing</td>
+      <td>1.00</td>
+    </tr>
+  </tbody>
+</table>
+<h2>Time coverage & sampling</h2>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>metric</th>
+      <th>value</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>min_timestamp</td>
+      <td>2020-03-01 00:00:30.874000+00:00</td>
+    </tr>
+    <tr>
+      <td>max_timestamp</td>
+      <td>2020-03-31 23:59:50.360000+00:00</td>
+    </tr>
+    <tr>
+      <td>n_valid_timestamps</td>
+      <td>43235</td>
+    </tr>
+    <tr>
+      <td>n_missing_timestamps</td>
+      <td>45</td>
+    </tr>
+    <tr>
+      <td>median_interval_sec</td>
+      <td>60.5405</td>
+    </tr>
+    <tr>
+      <td>mean_interval_sec</td>
+      <td>61.950305</td>
+    </tr>
+    <tr>
+      <td>p95_interval_sec</td>
+      <td>61.984</td>
+    </tr>
+    <tr>
+      <td>p99_interval_sec</td>
+      <td>121.007</td>
+    </tr>
+    <tr>
+      <td>max_interval_sec</td>
+      <td>789.039</td>
+    </tr>
+  </tbody>
+</table>
+<h2>Missingness</h2>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th></th>
+      <th>missing_%</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>Date</th>
+      <td>0.103974</td>
+    </tr>
+  </tbody>
+</table>
+<h2>Key constraint checks</h2>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>rule</th>
+      <th>count</th>
+      <th>fraction_%</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Main_Engine_Power_kW &lt; 0</td>
+      <td>23</td>
+      <td>0.053142</td>
+    </tr>
+    <tr>
+      <td>Trim_m outside [-5,5]</td>
+      <td>19</td>
+      <td>0.043900</td>
+    </tr>
+    <tr>
+      <td>DRAFTFWD &lt;= 0</td>
+      <td>18</td>
+      <td>0.041590</td>
+    </tr>
+    <tr>
+      <td>Avg_draft_m &lt;= 0</td>
+      <td>18</td>
+      <td>0.041590</td>
+    </tr>
+  </tbody>
+</table>
+<h2>Top correlations</h2>
+<table border="1" class="dataframe">
+  <thead>
+    <tr style="text-align: right;">
+      <th>col1</th>
+      <th>col2</th>
+      <th>corr</th>
+      <th>abs_corr</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>DRAFTAFT</td>
+      <td>Avg_draft_m</td>
+      <td>0.984346</td>
+      <td>0.984346</td>
+    </tr>
+    <tr>
+      <td>DRAFTFWD</td>
+      <td>Avg_draft_m</td>
+      <td>0.952262</td>
+      <td>0.952262</td>
+    </tr>
+    <tr>
+      <td>GPSSpeed_kn</td>
+      <td>Main_Engine_Power_kW</td>
+      <td>0.952071</td>
+      <td>0.952071</td>
+    </tr>
+    <tr>
+      <td>Main_Engine_Power_kW</td>
+      <td>Speed_rpm</td>
+      <td>0.892812</td>
+      <td>0.892812</td>
+    </tr>
+    <tr>
+      <td>GPS_LAT</td>
+      <td>GPS_LON</td>
+      <td>0.889872</td>
+      <td>0.889872</td>
+    </tr>
+    <tr>
+      <td>DRAFTAFT</td>
+      <td>DRAFTFWD</td>
+      <td>0.883551</td>
+      <td>0.883551</td>
+    </tr>
+    <tr>
+      <td>GPSSpeed_kn</td>
+      <td>Speed_rpm</td>
+      <td>0.882865</td>
+      <td>0.882865</td>
+    </tr>
+    <tr>
+      <td>DRAFTAFT</td>
+      <td>Trim_m</td>
+      <td>0.875508</td>
+      <td>0.875508</td>
+    </tr>
+    <tr>
+      <td>TrueWindSpeed_kn</td>
+      <td>RelWindSpeed_kn</td>
+      <td>0.852969</td>
+      <td>0.852969</td>
+    </tr>
+    <tr>
+      <td>Avg_draft_m</td>
+      <td>Trim_m</td>
+      <td>0.776639</td>
+      <td>0.776639</td>
+    </tr>
+    <tr>
+      <td>RelWindSpeed_kn</td>
+      <td>Main_Engine_Power_kW</td>
+      <td>0.762038</td>
+      <td>0.762038</td>
+    </tr>
+    <tr>
+      <td>Main_Engine_Power_kW</td>
+      <td>Fuel_Consumption_t_per_day</td>
+      <td>0.720970</td>
+      <td>0.720970</td>
+    </tr>
+    <tr>
+      <td>GPSSpeed_kn</td>
+      <td>RelWindSpeed_kn</td>
+      <td>0.704494</td>
+      <td>0.704494</td>
+    </tr>
+    <tr>
+      <td>GPSSpeed_kn</td>
+      <td>Fuel_Consumption_t_per_day</td>
+      <td>0.697104</td>
+      <td>0.697104</td>
+    </tr>
+    <tr>
+      <td>RelWindSpeed_kn</td>
+      <td>Speed_rpm</td>
+      <td>0.665717</td>
+      <td>0.665717</td>
+    </tr>
+  </tbody>
+</table>
+<h2>Correlation heatmap</h2>
+<img src='plots/corr_heatmap.png' style='max-width:100%;height:auto;border:1px solid #eee' />
+<h2>Key histograms</h2>
+<div style='margin:10px 0;'><img src='plots/hist_GPSSpeed_kn.png' style='max-width:100%;height:auto;border:1px solid #eee' /></div>
+<div style='margin:10px 0;'><img src='plots/hist_Main_Engine_Power_kW.png' style='max-width:100%;height:auto;border:1px solid #eee' /></div>
+<div style='margin:10px 0;'><img src='plots/hist_Speed_rpm.png' style='max-width:100%;height:auto;border:1px solid #eee' /></div>
+<div style='margin:10px 0;'><img src='plots/hist_Fuel_Consumption_t_per_day.png' style='max-width:100%;height:auto;border:1px solid #eee' /></div>
+<h2>Extra plots</h2>
+<div style='margin:10px 0;'><img src='plots_extra/gps_track.png' style='max-width:100%;height:auto;border:1px solid #eee' /></div>
+<div style='margin:10px 0;'><img src='plots_extra/power_vs_speed.png' style='max-width:100%;height:auto;border:1px solid #eee' /></div>
+</body></html>

@@ -1,0 +1,26 @@
+{
+  "shape": {
+    "rows": 43280,
+    "cols": 15
+  },
+  "memory_mb": 4.953128814697266,
+  "duplicates_rows": 0,
+  "date_missing": 45,
+  "time_range_utc": {
+    "min": "2020-03-01 00:00:30.874000+00:00",
+    "max": "2020-03-31 23:59:50.360000+00:00"
+  },
+  "sampling_seconds": {
+    "median": 60.540499999999994,
+    "mean": 61.95030499144192,
+    "p95": 61.984,
+    "p99": 121.007,
+    "max": 789.039
+  },
+  "key_flags": {
+    "draftfwd_sentinel_-9999": 18,
+    "avg_draft_nonpositive": 18,
+    "trim_outside_-5_5": 19,
+    "negative_engine_power": 23
+  }
+}

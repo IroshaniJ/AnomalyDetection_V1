@@ -1,0 +1,9 @@
+metric,value
+total_records,43280
+valid_records,43262
+dropped_nan_rows,18
+n_features,8
+flag_negative_power,23
+flag_extreme_trim,19
+flag_invalid_draft,0
+flag_any_constraint,42

@@ -1,0 +1,10 @@
+metric,value
+min_timestamp,2020-03-01 00:00:30.874000+00:00
+max_timestamp,2020-03-31 23:59:50.360000+00:00
+n_valid_timestamps,43235
+n_missing_timestamps,45
+median_interval_sec,60.540499999999994
+mean_interval_sec,61.95030499144192
+p95_interval_sec,61.984
+p99_interval_sec,121.007
+max_interval_sec,789.039
