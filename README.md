@@ -321,7 +321,3 @@ Since no labelled anomaly data is available, evaluation uses:
 4. **Physical plausibility** — flagged points should deviate from the known power–speed relationship (r = 0.95)
 
 ---
-
-## Acknowledgements
-
-Developed at **SINTEF Ocean** as part of the [Twinship](https://www.sintef.no) project. Vessel sensor data provided under project agreement.
