@@ -56,7 +56,8 @@ def run(config: Optional[dict] = None) -> dict:
     result = runner.run(data_path=data_path)
     elapsed = time.time() - t0
 
-    print(f"  [EDA] Done in {elapsed:.1f}s  →  {output_dir}/")
+    vessel_out = result.get('output_dir', output_dir)
+    print(f"  [EDA] Done in {elapsed:.1f}s  →  {vessel_out}/")
     result['elapsed_sec'] = round(elapsed, 2)
     return result
 

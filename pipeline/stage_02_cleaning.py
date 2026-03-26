@@ -75,7 +75,12 @@ def run(config: Optional[dict] = None) -> dict:
     print(f"  [Cleaning] {n_total:,} records loaded")
 
     # ── Separate valid vs missing rows ─────────────────────────────────────────
-    feature_cols = get_feature_columns()
+    # Use vessel-specific feature columns; skip any that are absent in the data
+    all_feat_cols = get_feature_columns(data_path)
+    feature_cols  = [c for c in all_feat_cols if c in df.columns]
+    missing_feat  = [c for c in all_feat_cols if c not in df.columns]
+    if missing_feat:
+        print(f"  [Cleaning] WARNING: expected feature cols not in data: {missing_feat}")
     valid_mask   = ~df[feature_cols].isna().any(axis=1)
     df_valid     = df[valid_mask].reset_index(drop=True)
     df_missing   = df[~valid_mask].reset_index(drop=True)
@@ -104,11 +109,13 @@ def run(config: Optional[dict] = None) -> dict:
     valid_mask_out = np.ones(n_valid, dtype=bool)
 
     # ── Constraint summary (over valid rows only) ──────────────────────────────
+    _flag_names = [
+        'flag_negative_power', 'flag_extreme_trim',
+        'flag_invalid_draft',  'flag_any_constraint',
+    ]
     flags = {
-        'flag_negative_power': int(df_valid['flag_negative_power'].sum()),
-        'flag_extreme_trim':   int(df_valid['flag_extreme_trim'].sum()),
-        'flag_invalid_draft':  int(df_valid['flag_invalid_draft'].sum()),
-        'flag_any_constraint': int(df_valid['flag_any_constraint'].sum()),
+        k: int(df_valid[k].sum()) if k in df_valid.columns else 0
+        for k in _flag_names
     }
     for flag, count in flags.items():
         print(f"  [Cleaning]   {flag}: {count}")

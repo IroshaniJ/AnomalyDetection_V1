@@ -278,7 +278,10 @@ Examples:
   python pipeline/run_pipeline.py --data data1.csv --n-clusters 5 --threshold-pct 97
         """
     )
-    parser.add_argument('--data',            default='data1.csv')
+    parser.add_argument('--data',            default='data1.csv',
+                        help='Path to a single CSV/XLSX file or a directory '
+                             'containing CSV/XLSX files (searched recursively). '
+                             'Default: data1.csv')
     parser.add_argument('--skip-eda',        action='store_true',
                         help='Skip Stage 01 (EDA) — useful for re-runs')
     parser.add_argument('--only-stage',      type=str, default=None,
