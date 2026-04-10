@@ -1,13 +1,14 @@
 # Twinship — Maritime Vessel Anomaly Detection
 
-Unsupervised anomaly detection system for maritime vessel sensor data, developed as part of the **Twinship** project at [SINTEF](https://www.sintef.no). Analyses time-series data from onboard sensors to detect operational anomalies in propulsion, navigation, and fuel consumption patterns.
+Unsupervised anomaly detection system for maritime vessel sensor data. Analyses time-series data from sensors to detect operational anomalies in propulsion, navigation, and fuel consumption patterns.
 
 ---
 
 ## Table of Contents
 
 - [Overview](#overview)
-- [Dataset](#dataset)
+- [Supported Vessels](#supported-vessels)
+- [Key Features](#key-features)
 - [Pipeline Architecture](#pipeline-architecture)
 - [Detection Methods](#detection-methods)
 - [Results](#results)
@@ -32,38 +33,72 @@ The approach is fully **unsupervised** — no labelled anomaly data is required.
 
 ---
 
-## Dataset
+## Supported Vessels
 
-| Property | Value |
+| Vessel | IMO / MMSI | Sampling | Raw format |
+|---|---|---|---|
+| **Stenaline** (MMSI 9235517) | 9235517 | ~14 s | Monthly CSVs (`9235517_YYYYMM.csv`) |
+| **Stenateknik** (MMSI 9685475) | 9685475 | ~14 s | Monthly CSVs (`9685475_YYYYMM.csv`) |
+| **Grimaldi** – EUROCARGO GENOVA | — | ~120 s | Excel export (`.xlsx`, 56 columns) |
+
+Vessel detection is automatic: the pipeline inspects the data file path for the keywords `stenaline`, `stenateknik`, or `grimaldi` and applies the correct column mapping and physical limits.
+
+---
+
+## Key Features
+
+The table below lists the exact raw column names from each vessel dataset and the standard pipeline name they are mapped to.
+
+### Shaft Power
+
+| Standard name | Stenaline | Stenateknik | Grimaldi |
+|---|---|---|---|
+| `Main_Engine_Power_kW` | `PropulsionPowerTotal` | `ME Shaft Power (kW)` | `SHAFT POWER[kW]` |
+
+### Fuel Consumption
+
+| Standard name | Stenaline | Stenateknik | Grimaldi |
+|---|---|---|---|
+| `Fuel_Consumption_rate` | `FuelMassFlowMETotal` (kg/h) | `ME Fuel Mass Net (kg/hr)` | `ME FLOWMETER FLOW RATE [mt/h]` |
+
+### Shaft RPM
+
+| Standard name | Stenaline | Stenateknik | Grimaldi |
+|---|---|---|---|
+| `Speed_rpm` | — *(not available)* | `ME Shaft Speed (rpm)` | `SHAFT SPEED [rpm]` |
+
+### Ship Speed
+
+| Standard name | Description | Stenaline | Stenateknik | Grimaldi |
+|---|---|---|---|---|
+| `GPSSpeed_kn` | Speed over ground (SOG) | `SOG` | `Ship Speed GPS (knot)` | `SPEED OVER GROUND [kn]` |
+| `SpeedLog_kn` | Speed through water (STW) | — *(not available)* | `Ship Speed Log (knot)` | `SPEED THROUGH WATER [kn]` |
+
+### Draft
+
+| Standard name | Description | Stenaline | Stenateknik | Grimaldi |
+|---|---|---|---|---|
+| `DRAFTAFT` | Draft aft | `DraftAftDynamic` | `Draft Aft (m)` | `DRAFTAFT[m]` |
+| `DRAFTFWD` | Draft forward | `DraftFwdDynamic` | `Draft Fwd (m)` | `DRAFTFOR[m]` |
+
+### Wind
+
+| Standard name | Description | Stenaline | Stenateknik | Grimaldi |
+|---|---|---|---|---|
+| `RelWindSpeed_kn` | Apparent wind speed | `AWS` | `Wind Speed Rel. (knot)` | `WIND SPEED_1` |
+| `RelWindAngle_deg` | Apparent wind direction | `AWA` | `Wind Dir. Rel. (deg)` | `WIND DIR_1` |
+
+### Wave & Current *(Grimaldi only)*
+
+| Standard name | Raw column |
 |---|---|
-| File | `data1.csv` |
-| Records | 43,280 |
-| Features | 15 columns |
-| Time range | March 2020 (2020-03-01 → 2020-03-31) |
-| Sampling interval | ~60 s median (gaps up to 789 s) |
-| Missing data | `Date` column only (0.1%, 45 records) |
+| `Wave_Height_m` | `WAVE HEIGHT [m]` |
+| `Wave_Period_s` | `WAVE PERIOD [sec]` |
+| `Swell_Height_m` | `SWELL HEIGHT [m]` |
+| `Current_Speed_kn` | `CURRENT SPEED [kn]` |
+| `Current_Direction_deg` | `CURRENT DIRECTION [°]` |
 
-### Key Features Used for Detection
-
-| Feature | Description |
-|---|---|
-| `GPSSpeed_kn` | Vessel speed over ground |
-| `Main_Engine_Power_kW` | Main engine output power |
-| `Speed_rpm` | Engine shaft RPM |
-| `Fuel_Consumption_t_per_day` | Fuel burn rate |
-| `Avg_draft_m` | Mean hull draft |
-| `Trim_m` | Vessel trim (fore/aft difference) |
-| `TrueWindSpeed_kn` | Meteorological wind speed |
-| `RelWindSpeed_kn` | Apparent (relative) wind speed |
-
-### Known Data Quality Issues
-
-| Violation | Count | Handling |
-|---|---|---|
-| `Main_Engine_Power_kW < 0` | 23 | Flagged as `negative_power` |
-| `Trim_m` outside ±5 m | 19 | Flagged as `extreme_trim` |
-| `DRAFTFWD == -9999` (sentinel) | 18 | Replaced with `NaN` |
-| `Avg_draft_m ≤ 0` | 18 | Flagged as `invalid_draft` |
+Wave and current data are **not available** in the Stenaline or Stenateknik raw exports.
 
 ---
 
@@ -72,31 +107,37 @@ The approach is fully **unsupervised** — no labelled anomaly data is required.
 ```
 Stage 01 — EDA
     └─ Generates summary statistics, correlation heatmaps, histograms
-       Output: eda_out_redo/
+       Output: results/01_eda/
 
-Stage 02 — Data Cleaning
+Stage 02 — Generate Variable Metadata
+    └─ Derives per-variable metadata (unit, physical limits, hard/soft filter bounds)
+    └─ Full mode: reloads raw CSV and re-runs Phase 7 of EDARunner
+    └─ Patch mode (default): updates unit/limits from cached univariate_report.csv
+       Output: results/01_eda/{vessel_id}/{vessel_id}_metadata.csv
+
+Stage 03 — Data Cleaning
     └─ Handles sentinel values, flags constraint violations
     └─ Isolates records with missing feature data → logs to anomalies.db (missing_records table)
-    └─ Saves only valid rows to results/02_cleaning/cleaned_data.pkl
+    └─ Saves only valid rows to results/03_cleaning/cleaned_data.pkl
 
-Stage 03 — Clustering
+Stage 04 — Clustering
     └─ K-Means (k=4) to identify operational modes
     └─ Modes: AtRest_Loaded, HighSpeed, MediumSpeed, AtRest_Unloaded
-       Output: results/03_clustering/
+       Output: results/04_clustering/
 
-Stage 04 — Anomaly Detection
+Stage 05 — Anomaly Detection
     └─ Per-cluster SVD, Isolation Forest, and/or Autoencoder
     └─ Majority-vote ensemble (≥2/n methods)
     └─ Generates 10 diagnostic plots
-       Output: results/04_anomaly_detection/
+       Output: results/05_anomaly_detection/
 
-Stage 05 — Classification
+Stage 06 — Classification
     └─ Labels each anomaly by type (constraint violation vs. multivariate outlier)
-       Output: results/05_classification/
+       Output: results/06_classification/
 
-Stage 06 — Saving
+Stage 07 — Saving
     └─ Persists anomalies to anomalies.db, exports CSV and HTML report
-       Output: results/06_saving/
+       Output: results/07_saving/
 ```
 
 ---
@@ -156,11 +197,13 @@ AnomalyDetection_V1/
 ├── pipeline/
 │   ├── run_pipeline.py              # Full pipeline orchestrator (CLI + programmatic)
 │   ├── stage_01_eda.py
-│   ├── stage_02_cleaning.py
-│   ├── stage_03_clustering.py
-│   ├── stage_04_anomaly_detection.py
-│   ├── stage_05_classification.py
-│   └── stage_06_saving.py
+│   ├── stage_02_gen_metadata.py     # Generate per-vessel variable metadata CSVs
+│   ├── stage_03_cleaning.py
+│   ├── stage_04_clustering.py
+│   ├── stage_05_anomaly_detection.py
+│   ├── stage_06_classification.py
+│   ├── stage_07_saving.py
+│   └── regen_metadata.py            # Standalone metadata regeneration helper
 │
 ├── src/
 │   ├── models/
@@ -185,14 +228,15 @@ AnomalyDetection_V1/
 │       └── autoencoder.py              # ClusteredAutoencoder (PyTorch)
 │
 ├── results/                            # Generated outputs (gitignored)
-│   ├── 02_cleaning/
-│   ├── 03_clustering/
-│   ├── 04_anomaly_detection/
+│   ├── 01_eda/
+│   ├── 03_cleaning/
+│   ├── 04_clustering/
+│   ├── 05_anomaly_detection/
 │   │   └── plots/                      # 10 diagnostic plots
-│   ├── 05_classification/
-│   └── 06_saving/
+│   ├── 06_classification/
+│   └── 07_saving/
 │
-└── eda_out_redo/                        # EDA report and plots
+└── eda_out_redo/                        # Legacy EDA report and plots
 ```
 
 ---
@@ -240,10 +284,10 @@ python pipeline/run_pipeline.py --skip-eda --methods svd iforest autoencoder
 python pipeline/run_pipeline.py --only-stage 04 --methods svd iforest autoencoder
 ```
 
-### Run stage 04 directly with custom settings
+### Run stage 05 directly with custom settings
 
 ```bash
-python pipeline/stage_04_anomaly_detection.py \
+python pipeline/stage_05_anomaly_detection.py \
     --methods svd iforest autoencoder \
     --ae-epochs 100 \
     --threshold-pct 95 \
@@ -254,9 +298,11 @@ python pipeline/stage_04_anomaly_detection.py \
 
 | Flag | Default | Description |
 |---|---|---|
-| `--data` | `data1.csv` | Path to input CSV |
+| `--data` | `data1.csv` | Path to input CSV (vessel detected from path) |
 | `--skip-eda` | `False` | Skip Stage 01 EDA |
-| `--only-stage` | `None` | Run one stage only (e.g. `04`) |
+| `--skip-metadata` | `False` | Skip Stage 02 Generate Metadata |
+| `--metadata-full-mode` | `False` | Stage 02: reload raw CSV instead of patch mode |
+| `--only-stage` | `None` | Run one stage only (e.g. `05`) |
 | `--methods` | `svd iforest autoencoder` | Detection methods to use |
 | `--n-clusters` | `4` | Number of operational clusters |
 | `--n-components` | `3` | SVD latent components |
@@ -279,7 +325,7 @@ results = run_pipeline({
     'ae_epochs':     50,
 })
 
-print(f"Ensemble anomalies: {results['stage04']['n_anomalies']}")
+print(f"Ensemble anomalies: {results['05_detection']['n_anomalies']}")
 ```
 
 ---
@@ -300,6 +346,8 @@ print(f"Ensemble anomalies: {results['stage04']['n_anomalies']}")
 | `spatial_anomalies.png` | GPS vessel track coloured by cluster (left) and anomaly score (right) |
 | `anomaly_rate_by_cluster.png` | Anomaly count and rate per operational mode (bar + pie) |
 | `power_speed_anomalies.png` | Speed vs Power and Speed vs Fuel scatter with anomaly score intensity |
+
+Paths are under `results/05_anomaly_detection/plots/`.
 
 ### Database Tables (`anomalies.db`)
 

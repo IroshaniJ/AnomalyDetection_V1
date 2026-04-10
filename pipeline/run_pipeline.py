@@ -1,14 +1,15 @@
 """
 Full Pipeline Orchestrator
 ==========================
-Chains all six stages end-to-end:
+Chains all seven stages end-to-end:
 
     Stage 01 → EDA
-    Stage 02 → Data Cleaning
-    Stage 03 → Clustering
-    Stage 04 → Anomaly Detection
-    Stage 05 → Anomaly Classification
-    Stage 06 → Saving (SQLite + CSV + report)
+    Stage 02 → Generate Variable Metadata
+    Stage 03 → Data Cleaning
+    Stage 04 → Clustering
+    Stage 05 → Anomaly Detection
+    Stage 06 → Anomaly Classification
+    Stage 07 → Saving (SQLite + CSV + report)
 
 Usage
 ─────
@@ -22,7 +23,7 @@ Override data file or thresholds:
     python pipeline/run_pipeline.py --data path/to/data.csv --threshold-pct 97
 
 Run only a specific stage:
-    python pipeline/run_pipeline.py --only-stage 04
+    python pipeline/run_pipeline.py --only-stage 05
 
 Programmatic use:
     from pipeline.run_pipeline import run_pipeline
@@ -41,12 +42,13 @@ _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from pipeline.stage_01_eda              import run as run_eda
-from pipeline.stage_02_cleaning         import run as run_cleaning
-from pipeline.stage_03_clustering       import run as run_clustering
-from pipeline.stage_04_anomaly_detection import run as run_detection
-from pipeline.stage_05_classification   import run as run_classification
-from pipeline.stage_06_saving           import run as run_saving
+from pipeline.stage_01_eda               import run as run_eda
+from pipeline.stage_02_gen_metadata      import run as run_gen_metadata
+from pipeline.stage_03_cleaning          import run as run_cleaning
+from pipeline.stage_04_clustering        import run as run_clustering
+from pipeline.stage_05_anomaly_detection import run as run_detection
+from pipeline.stage_06_classification    import run as run_classification
+from pipeline.stage_07_saving            import run as run_saving
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
@@ -58,23 +60,26 @@ def run_pipeline(config: Optional[dict] = None) -> dict:
     Args:
         config: Optional dict with any combination of the keys below.
             Global:
-                ``data``             – path to input CSV (default: 'data1.csv')
-                ``skip_eda``         – skip Stage 01 (default: False)
-                ``only_stage``       – run only this stage, e.g. '04' (default: None)
+                ``data``                 – path to input CSV (default: 'data1.csv')
+                ``skip_eda``             – skip Stage 01 (default: False)
+                ``skip_metadata``        – skip Stage 02 (default: False)
+                ``metadata_full_mode``   – Stage 02 reloads raw CSV (default: False = patch mode)
+                ``vessel``               – restrict Stage 02 to one vessel id (default: None)
+                ``only_stage``           – run only this stage, e.g. '05' (default: None)
             Stage-specific (forwarded to each stage):
-                ``n_clusters``       – K-Means clusters (default: 4)
-                ``n_components``     – SVD components  (default: 3)
-                ``threshold_pct``    – anomaly percentile threshold (default: 95.0)
-                ``random_state``     – random seed (default: 42)
-                ``model_version``    – model artefact tag (default: 'clustered_svd_v1')
-                ``db``               – SQLite path (default: 'anomalies.db')
+                ``n_clusters``           – K-Means clusters (default: 4)
+                ``n_components``         – SVD components  (default: 3)
+                ``threshold_pct``        – anomaly percentile threshold (default: 95.0)
+                ``random_state``         – random seed (default: 42)
+                ``model_version``        – model artefact tag (default: 'clustered_svd_v1')
+                ``db``                   – SQLite path (default: 'anomalies.db')
             Output directories (defaults shown):
                 ``eda_dir``              → results/01_eda
-                ``cleaning_dir``         → results/02_cleaning
-                ``clustering_dir``       → results/03_clustering
-                ``detection_dir``        → results/04_anomaly_detection
-                ``classification_dir``   → results/05_classification
-                ``saving_dir``           → results/06_saving
+                ``cleaning_dir``         → results/03_cleaning
+                ``clustering_dir``       → results/04_clustering
+                ``detection_dir``        → results/05_anomaly_detection
+                ``classification_dir``   → results/06_classification
+                ``saving_dir``           → results/07_saving
 
     Returns:
         dict mapping stage name → that stage's result dict.
@@ -98,11 +103,11 @@ def run_pipeline(config: Optional[dict] = None) -> dict:
     ae_encoding_dim = int(config.get('ae_encoding_dim', 3))
 
     eda_dir            = config.get('eda_dir',            'results/01_eda')
-    cleaning_dir       = config.get('cleaning_dir',       'results/02_cleaning')
-    clustering_dir     = config.get('clustering_dir',     'results/03_clustering')
-    detection_dir      = config.get('detection_dir',      'results/04_anomaly_detection')
-    classification_dir = config.get('classification_dir', 'results/05_classification')
-    saving_dir         = config.get('saving_dir',         'results/06_saving')
+    cleaning_dir       = config.get('cleaning_dir',       'results/03_cleaning')
+    clustering_dir     = config.get('clustering_dir',     'results/04_clustering')
+    detection_dir      = config.get('detection_dir',      'results/05_anomaly_detection')
+    classification_dir = config.get('classification_dir', 'results/06_classification')
+    saving_dir         = config.get('saving_dir',         'results/07_saving')
 
     _banner()
     results: dict = {}
@@ -113,19 +118,30 @@ def run_pipeline(config: Optional[dict] = None) -> dict:
     else:
         _skip('01', 'EDA', skip_eda)
 
-    # ── Stage 02 — Cleaning ────────────────────────────────────────────────────
-    if _should_run('02', only_stage):
-        results['02_cleaning'] = run_cleaning({
+    # ── Stage 02 — Generate Variable Metadata ─────────────────────────────────
+    skip_metadata = bool(config.get('skip_metadata', False))
+    if _should_run('02', only_stage, skip_metadata):
+        results['02_gen_metadata'] = run_gen_metadata({
+            'data':    data if config.get('metadata_full_mode') else None,
+            'vessel':  config.get('vessel', None),
+            'eda_dir': eda_dir,
+        })
+    else:
+        _skip('02', 'Generate Metadata', skip_metadata)
+
+    # ── Stage 03 — Cleaning ────────────────────────────────────────────────────
+    if _should_run('03', only_stage):
+        results['03_cleaning'] = run_cleaning({
             'data':       data,
             'output_dir': cleaning_dir,
             'db':         db_path,
         })
     else:
-        _skip('02', 'Cleaning')
+        _skip('03', 'Cleaning')
 
-    # ── Stage 03 — Clustering ──────────────────────────────────────────────────
-    if _should_run('03', only_stage):
-        results['03_clustering'] = run_clustering({
+    # ── Stage 04 — Clustering ──────────────────────────────────────────────────
+    if _should_run('04', only_stage):
+        results['04_clustering'] = run_clustering({
             'cleaning_dir': cleaning_dir,
             'data':         data,
             'output_dir':   clustering_dir,
@@ -133,11 +149,11 @@ def run_pipeline(config: Optional[dict] = None) -> dict:
             'random_state': random_state,
         })
     else:
-        _skip('03', 'Clustering')
+        _skip('04', 'Clustering')
 
-    # ── Stage 04 — Anomaly Detection ──────────────────────────────────────────
-    if _should_run('04', only_stage):
-        results['04_detection'] = run_detection({
+    # ── Stage 05 — Anomaly Detection ──────────────────────────────────────────
+    if _should_run('05', only_stage):
+        results['05_detection'] = run_detection({
             'cleaning_dir':    cleaning_dir,
             'data':            data,
             'output_dir':      detection_dir,
@@ -152,21 +168,21 @@ def run_pipeline(config: Optional[dict] = None) -> dict:
             'ae_encoding_dim': ae_encoding_dim,
         })
     else:
-        _skip('04', 'Anomaly Detection')
+        _skip('05', 'Anomaly Detection')
 
-    # ── Stage 05 — Classification ──────────────────────────────────────────────
-    if _should_run('05', only_stage):
-        results['05_classification'] = run_classification({
+    # ── Stage 06 — Classification ──────────────────────────────────────────────
+    if _should_run('06', only_stage):
+        results['06_classification'] = run_classification({
             'detection_dir': detection_dir,
             'output_dir':    classification_dir,
         })
     else:
-        _skip('05', 'Classification')
+        _skip('06', 'Classification')
 
-    # ── Stage 06 — Saving ──────────────────────────────────────────────────────
-    if _should_run('06', only_stage):
+    # ── Stage 07 — Saving ──────────────────────────────────────────────────────
+    if _should_run('07', only_stage):
         # Carry avg_threshold from detection stage if available
-        avg_thr = results.get('04_detection', {}).get('avg_threshold_val', None)
+        avg_thr = results.get('05_detection', {}).get('avg_threshold_val', None)
         saving_cfg: dict = {
             'classification_dir': classification_dir,
             'detection_dir':      detection_dir,
@@ -179,9 +195,9 @@ def run_pipeline(config: Optional[dict] = None) -> dict:
         }
         if avg_thr is not None:
             saving_cfg['avg_threshold'] = avg_thr
-        results['06_saving'] = run_saving(saving_cfg)
+        results['07_saving'] = run_saving(saving_cfg)
     else:
-        _skip('06', 'Saving')
+        _skip('07', 'Saving')
 
     # ── Final summary ──────────────────────────────────────────────────────────
     elapsed = time.time() - t_total
@@ -217,12 +233,13 @@ def _final_summary(results: dict, elapsed: float):
     print("═" * 60)
 
     stage_labels = {
-        '01_eda':            'EDA',
-        '02_cleaning':       'Cleaning',
-        '03_clustering':     'Clustering',
-        '04_detection':      'Anomaly Detection',
-        '05_classification': 'Classification',
-        '06_saving':         'Saving',
+        '01_eda':             'EDA',
+        '02_gen_metadata':    'Generate Metadata',
+        '03_cleaning':        'Cleaning',
+        '04_clustering':      'Clustering',
+        '05_detection':       'Anomaly Detection',
+        '06_classification':  'Classification',
+        '07_saving':          'Saving',
     }
 
     for key, label in stage_labels.items():
@@ -234,13 +251,13 @@ def _final_summary(results: dict, elapsed: float):
             print(f"  –  Stage {key[:2]} — {label:<22}  (skipped)")
 
     # High-level stats
-    if '02_cleaning' in results:
-        r = results['02_cleaning']
+    if '03_cleaning' in results:
+        r = results['03_cleaning']
         print(f"\n  Records processed : {r['n_records']:,}  "
               f"(valid: {r['n_valid']:,})")
 
-    if '04_detection' in results:
-        r = results['04_detection']
+    if '05_detection' in results:
+        r = results['05_detection']
         print(f"  Anomalies found   : {r['n_anomalies']:,}  "
               f"({r['anomaly_rate']:.2f}%)")
         for _m, _rec in r.get('recall_per_method', {}).items():
@@ -248,8 +265,8 @@ def _final_summary(results: dict, elapsed: float):
         if 'recall_ensemble' in r:
             print(f"  Recall (ensemble )  : {r['recall_ensemble']:.1%}")
 
-    if '06_saving' in results:
-        r = results['06_saving']
+    if '07_saving' in results:
+        r = results['07_saving']
         print(f"  DB logged         : {r['n_anomalies_logged']:,} records → {r['db_path']}")
         print(f"  Report            : {r['report']}")
 
@@ -284,8 +301,12 @@ Examples:
                              'Default: data1.csv')
     parser.add_argument('--skip-eda',        action='store_true',
                         help='Skip Stage 01 (EDA) — useful for re-runs')
+    parser.add_argument('--skip-metadata',   action='store_true',
+                        help='Skip Stage 02 (Generate Metadata)')
+    parser.add_argument('--metadata-full-mode', action='store_true',
+                        help='Stage 02: reload raw CSV to regenerate metadata (default: patch mode)')
     parser.add_argument('--only-stage',      type=str, default=None,
-                        help='Run only this stage number (01–06), e.g. --only-stage 04')
+                        help='Run only this stage number (01–07), e.g. --only-stage 05')
     parser.add_argument('--n-clusters',      type=int,   default=4)
     parser.add_argument('--n-components',    type=int,   default=3)
     parser.add_argument('--threshold-pct',   type=float, default=95.0)
@@ -308,17 +329,19 @@ Examples:
 if __name__ == '__main__':
     args = _parse_args()
     run_pipeline({
-        'data':            args.data,
-        'skip_eda':        args.skip_eda,
-        'only_stage':      args.only_stage,
-        'n_clusters':      args.n_clusters,
-        'n_components':    args.n_components,
-        'threshold_pct':   args.threshold_pct,
-        'random_state':    args.random_state,
-        'model_version':   args.model_version,
-        'db':              args.db,
-        'methods':         args.methods,
-        'if_n_estimators': args.if_n_estimators,
-        'ae_epochs':       args.ae_epochs,
-        'ae_encoding_dim': args.ae_encoding_dim,
+        'data':                args.data,
+        'skip_eda':            args.skip_eda,
+        'skip_metadata':       args.skip_metadata,
+        'metadata_full_mode':  args.metadata_full_mode,
+        'only_stage':          args.only_stage,
+        'n_clusters':          args.n_clusters,
+        'n_components':        args.n_components,
+        'threshold_pct':       args.threshold_pct,
+        'random_state':        args.random_state,
+        'model_version':       args.model_version,
+        'db':                  args.db,
+        'methods':             args.methods,
+        'if_n_estimators':     args.if_n_estimators,
+        'ae_epochs':           args.ae_epochs,
+        'ae_encoding_dim':     args.ae_encoding_dim,
     })
