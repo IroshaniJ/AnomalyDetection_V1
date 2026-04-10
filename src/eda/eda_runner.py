@@ -122,7 +122,7 @@ UNIVARIATE_SIGNAL_PROFILES: dict = {
     },
     'GPSSpeed_kn': {
         'label': 'Speed over Ground', 'unit': 'kn',
-        'phys_lo': 0.0, 'phys_hi': 25.0,
+        'phys_lo': 0.0, 'phys_hi': 30.0,
         'negative_is_anomaly': True,
         'alias': ['SOG'],
         'expect': (
@@ -198,6 +198,37 @@ UNIVARIATE_SIGNAL_PROFILES: dict = {
         'phys_lo': 0.0, 'phys_hi': 2_000.0, 'negative_is_anomaly': True,
         'alias': [],
         'expect': 'Expected: proportional to shaft power / speed. Spikes or negatives indicate sensor fault.',
+    },
+    # ── Directional / compass columns (0–360°) ───────────────────────────────
+    'Ship_Course_deg': {
+        'label': 'Course Over Ground', 'unit': '°',
+        'phys_lo': 0.0, 'phys_hi': 360.0, 'negative_is_anomaly': False,
+        'alias': [],
+        'expect': 'Expected: 0–360°. Values outside this range indicate sensor wrap-around or encoding error.',
+    },
+    'Heading_deg': {
+        'label': 'Heading', 'unit': '°',
+        'phys_lo': 0.0, 'phys_hi': 360.0, 'negative_is_anomaly': False,
+        'alias': [],
+        'expect': 'Expected: 0–360°. Values outside this range indicate sensor wrap-around or encoding error.',
+    },
+    'Current_Direction_deg': {
+        'label': 'Current Direction', 'unit': '°',
+        'phys_lo': 0.0, 'phys_hi': 360.0, 'negative_is_anomaly': False,
+        'alias': [],
+        'expect': 'Expected: 0–360°. Values outside this range indicate sensor wrap-around or encoding error.',
+    },
+    'Swell_Direction_deg': {
+        'label': 'Swell Direction', 'unit': '°',
+        'phys_lo': 0.0, 'phys_hi': 360.0, 'negative_is_anomaly': False,
+        'alias': [],
+        'expect': 'Expected: 0–360°. Values outside this range indicate sensor wrap-around or encoding error.',
+    },
+    'Wave_Direction_deg': {
+        'label': 'Wave Direction', 'unit': '°',
+        'phys_lo': 0.0, 'phys_hi': 360.0, 'negative_is_anomaly': False,
+        'alias': [],
+        'expect': 'Expected: 0–360°. Values outside this range indicate sensor wrap-around or encoding error.',
     },
 }
 
@@ -2144,21 +2175,29 @@ class EDARunner:
             if len(s) < 2:
                 return 0
             _rounded = np.round(s.values, 4)
-            _change  = np.concatenate([[1], (_rounded[1:] != _rounded[:-1]).astype(int)])
-            _run_ids = np.cumsum(_change) - 1
+            _change  = np.empty(len(_rounded), dtype=bool)
+            _change[0] = True
+            _change[1:] = _rounded[1:] != _rounded[:-1]
             if ts_utc is not None:
-                _ts = ts_utc.reindex(s.index)
-                total = 0
-                for run_id in np.unique(_run_ids):
-                    mask = _run_ids == run_id
-                    run_ts = _ts.iloc[np.where(mask)[0]].dropna()
-                    if len(run_ts) >= 2:
-                        duration = (run_ts.iloc[-1] - run_ts.iloc[0]).total_seconds()
-                        if duration >= FROZEN_MIN_SECONDS:
-                            total += int(mask.sum())
-                return total
+                # Convert timestamps to epoch-seconds float64 once (NaT → NaN).
+                _ts_s = (pd.to_numeric(ts_utc.reindex(s.index), errors='coerce')
+                         .to_numpy(dtype=float)) / 1e9
+
+                # Run boundaries: index where each run starts, plus a sentinel end.
+                boundaries  = np.where(_change)[0]
+                run_end_idx = np.empty(len(boundaries), dtype=np.intp)
+                run_end_idx[:-1] = boundaries[1:]
+                run_end_idx[-1]  = len(_rounded)
+                run_lengths = run_end_idx - boundaries
+
+                ts_first  = _ts_s[boundaries]
+                ts_last   = _ts_s[run_end_idx - 1]
+                durations = ts_last - ts_first   # seconds; NaN when endpoint is NaT
+                long_mask = durations >= FROZEN_MIN_SECONDS
+                return int(run_lengths[long_mask].sum())
             else:
                 # Fallback when no timestamps: flag runs of ≥ 12 identical readings
+                _run_ids = np.cumsum(_change) - 1
                 _, _counts = np.unique(_run_ids, return_counts=True)
                 return int(_counts[_counts >= 12].sum())
 
@@ -2192,7 +2231,9 @@ class EDARunner:
             """Flag if monthly means differ by > 20% of overall mean (seasonal effect)."""
             if ts_utc is None or len(valid) < 500:
                 return False
-            _months = ts_utc.reindex(valid.index).dt.to_period('M')
+            # Strip timezone before to_period to avoid pandas warning and slowdown
+            _ts_naive = ts_utc.reindex(valid.index).dt.tz_localize(None)
+            _months = _ts_naive.dt.to_period('M')
             _gp = valid.groupby(_months).mean().dropna()
             if len(_gp) < 2:
                 return False
@@ -2331,6 +2372,43 @@ class EDARunner:
             },
         }
 
+        def _unit_from_raw_col(raw_col: str) -> str:
+            """
+            Extract unit from a raw column name that embeds it in brackets or
+            trailing parentheses.
+
+            Square-bracket style (Grimaldi / generic):
+              'SPEED THROUGH WATER [kn]'  → 'kn'
+              'COURSE OVER GROUND [ ° ]'  → '°'
+              'DRAFTAFT[m]'               → 'm'
+
+            Trailing-parenthesis style (Stena / stenateknik):
+              'AE Emerg Mass In (kg/hr)'  → 'kg/hr'
+              'Blr DO Temp In (Â°C)'      → '°C'
+              'Depth of Water (m)'        → 'm'
+              'AE Emerg DO Mode ()'       → ''  (empty parens = dimensionless)
+
+            Returns empty string when no unit is found.
+            """
+            def _clean(unit_str: str) -> str:
+                unit_str = unit_str.strip()
+                unit_str = unit_str.replace('Â°', '°').replace('\u00b0', '°')
+                if not unit_str or unit_str.isdigit() or len(unit_str) > 20:
+                    return ''
+                return unit_str
+
+            # 1. Square brackets anywhere in the name
+            m = re.search(r'\[([^\]]+)\]', raw_col)
+            if m:
+                return _clean(m.group(1))
+
+            # 2. Trailing parentheses at the very end of the name
+            m = re.search(r'\(([^)]*)\)\s*$', raw_col)
+            if m:
+                return _clean(m.group(1))
+
+            return ''
+
         def _auto_describe(col_name: str, prof: dict) -> str:
             """Generate a fallback description for columns not in _SIGNAL_ROLES."""
             n = col_name
@@ -2387,6 +2465,13 @@ class EDARunner:
 
             phys_lo = profile.get('phys_lo')
             phys_hi = profile.get('phys_hi')
+            # Vessel-specific limits override global profile when provided
+            if cfg and cfg.physical_limits.get(col) is not None:
+                _vlo, _vhi = cfg.physical_limits[col]
+                if _vlo is not None:
+                    phys_lo = _vlo
+                if _vhi is not None:
+                    phys_hi = _vhi
             neg_anomaly = bool(profile.get('negative_is_anomaly', False))
 
             # ── 2. Normal operating range (Q10–Q90 when moving, else overall) ─
@@ -2465,6 +2550,23 @@ class EDARunner:
                 soft_parts.append(f'{n_spikes}_rate_spikes')
             if n_frozen > 0:
                 soft_parts.append(f'frozen_periods_detected')
+
+            # Fuel-power envelope check: power ≈ fuel_rate × slope ± offsets
+            # Parameters are vessel-specific (from VesselConfig) or fall back to defaults.
+            if col == 'Main_Engine_Power_kW' and 'Fuel_Consumption_rate' in df.columns:
+                _fuel = pd.to_numeric(df['Fuel_Consumption_rate'], errors='coerce')
+                _fuel_aligned = _fuel.reindex(valid.index).dropna()
+                _pwr_aligned  = valid.reindex(_fuel_aligned.index)
+                if len(_fuel_aligned) > 0:
+                    _fp_slope = getattr(cfg, 'fuel_power_slope', 4.7) if cfg else 4.7
+                    _fp_lo    = getattr(cfg, 'fuel_power_offset_low', -4500.0) if cfg else -4500.0
+                    _fp_hi    = getattr(cfg, 'fuel_power_offset_high', 3500.0) if cfg else 3500.0
+                    _expected = _fuel_aligned * _fp_slope
+                    _env_viol = ((_pwr_aligned < _expected + _fp_lo) |
+                                 (_pwr_aligned > _expected + _fp_hi)).sum()
+                    if _env_viol > 0:
+                        soft_parts.append(f'{int(_env_viol)}_fuel_power_envelope_violations')
+
             soft_warning = '; '.join(soft_parts) if soft_parts else 'none'
 
             #  Interpolation: OK for slow-varying signals with no long gaps
@@ -2519,7 +2621,8 @@ class EDARunner:
                 'variable_name':                col,
                 'feature_group':                _group_for_col(col, cfg),
                 'raw_column_name':              raw_col_map.get(col, col),
-                'unit':                         profile.get('unit', ''),
+                'unit':                         (profile.get('unit', '')
+                                                 or _unit_from_raw_col(raw_col_map.get(col, col))),
                 'column_description':           description,
                 'physical_limits':              phys_limits_str,
                 'normal_operating_range':       norm_range_str,

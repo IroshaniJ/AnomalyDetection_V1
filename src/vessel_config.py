@@ -75,6 +75,18 @@ class VesselConfig:
     # Expected sampling interval in seconds (used by time-axis audit)
     expected_interval_s: int = 14
 
+    # Per-vessel physical limits: {std_col_name: (lo, hi)}
+    # Overrides the global UNIVARIATE_SIGNAL_PROFILES phys_lo/phys_hi in EDA.
+    # Use None for an open-ended bound, e.g. (0.0, None).
+    physical_limits: Dict[str, tuple] = field(default_factory=dict)
+
+    # Fuel-power envelope filter (used in EDA soft-warning check):
+    #   expected_power = fuel_rate × fuel_power_slope
+    #   flag if power < expected + offset_low  OR  power > expected + offset_high
+    fuel_power_slope: float = 4.7
+    fuel_power_offset_low: float = -4500.0
+    fuel_power_offset_high: float = 3500.0
+
 
 # ── Stenaline (MMSI 9235517) ───────────────────────────────────────────────────
 # Raw CSV columns (from 9235517_YYYYMM.csv):
@@ -134,6 +146,16 @@ STENALINE = VesselConfig(
     timestamp_col='Date',
     date_format=None,   # files use mixed formats: dd/mm/yyyy HH:MM (Jul) and
                         # yyyy-mm-dd HH:MM:SS (Aug+); let pandas auto-detect
+    physical_limits={
+        'GPSSpeed_kn':           (0.0, 30.0),
+        'Main_Engine_Power_kW':  (0.0, 30_000.0),
+        'Fuel_Consumption_rate': (0.0, 6_000.0),
+        'DRAFTAFT':              (0.0, 15.0),
+        'DRAFTFWD':              (0.0, 15.0),
+    },
+    fuel_power_slope=4.3,
+    fuel_power_offset_low=-4500.0,
+    fuel_power_offset_high=4000.0,
 )
 
 
@@ -211,6 +233,17 @@ STENATEKNIK = VesselConfig(
     sentinel_values={},
     timestamp_col='Date',
     date_format=None,   # ISO format: yyyy-mm-dd HH:MM:SS.sss
+    physical_limits={
+        'GPSSpeed_kn':           (0.0, 25.0),
+        'Main_Engine_Power_kW':  (0.0, 10_000.0),
+        'Fuel_Consumption_rate': (0.0, 1_500.0),
+        'DRAFTAFT':              (0.0, 20.0),
+        'DRAFTFWD':              (0.0, 20.0),
+        'ME_Shaft_Torque_kNm':   (-1_000.0, 1_000.0),
+    },
+    fuel_power_slope=5.3,
+    fuel_power_offset_low=-3500.0,
+    fuel_power_offset_high=3500.0,
 )
 
 
