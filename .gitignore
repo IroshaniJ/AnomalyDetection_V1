@@ -1,6 +1,28 @@
+# Internal / full documentation (not for public distribution)
+README_internal.md
+
 # Results
 results/
 **/results/
+
+# Proprietary pipeline stages (not for public distribution)
+pipeline/stage_03_cleaning.py
+pipeline/stage_04_clustering.py
+pipeline/stage_05_anomaly_detection.py
+pipeline/stage_06_classification.py
+pipeline/stage_07_saving.py
+
+# Proprietary source modules
+src/preprocessing/
+src/models/
+src/classification/
+src/saving/
+src/database/
+
+# Proprietary benchmark methods
+benchmark/methods/isolation_forest.py
+benchmark/methods/autoencoder.py
+benchmark/methods/base_detector.py
 
 # Python cache
 __pycache__/

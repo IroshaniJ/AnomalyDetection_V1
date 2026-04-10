@@ -22,12 +22,11 @@ Unsupervised anomaly detection system for maritime vessel sensor data. Analyses 
 
 ## Overview
 
-The system runs a **6-stage modular pipeline** that takes raw vessel sensor data and produces:
+The system runs a **7-stage modular pipeline** that takes raw vessel sensor data and produces:
 
 - Detected anomalies stored in a **SQLite database**
-- **10 diagnostic plots** covering time-series overlays, spatial GPS tracks, cluster analysis, and sequential anomaly structures
-- Per-method comparison across SVD, Isolation Forest, and Autoencoder
-- A **majority-vote ensemble** that requires ≥2/3 methods to agree before flagging an anomaly
+- Diagnostic plots covering time-series overlays, spatial GPS tracks, cluster analysis, and anomaly structures
+- A combined ensemble that merges results from multiple detection methods
 
 The approach is fully **unsupervised** — no labelled anomaly data is required.
 
@@ -111,32 +110,22 @@ Stage 01 — EDA
 
 Stage 02 — Generate Variable Metadata
     └─ Derives per-variable metadata (unit, physical limits, hard/soft filter bounds)
-    └─ Full mode: reloads raw CSV and re-runs Phase 7 of EDARunner
-    └─ Patch mode (default): updates unit/limits from cached univariate_report.csv
+    └─ Full mode: reloads raw CSV; Patch mode (default): updates from cached stats
        Output: results/01_eda/{vessel_id}/{vessel_id}_metadata.csv
 
 Stage 03 — Data Cleaning
-    └─ Handles sentinel values, flags constraint violations
-    └─ Isolates records with missing feature data → logs to anomalies.db (missing_records table)
-    └─ Saves only valid rows to results/03_cleaning/cleaned_data.pkl
+       Output: results/03_cleaning/
 
 Stage 04 — Clustering
-    └─ K-Means (k=4) to identify operational modes
-    └─ Modes: AtRest_Loaded, HighSpeed, MediumSpeed, AtRest_Unloaded
        Output: results/04_clustering/
 
 Stage 05 — Anomaly Detection
-    └─ Per-cluster SVD, Isolation Forest, and/or Autoencoder
-    └─ Majority-vote ensemble (≥2/n methods)
-    └─ Generates 10 diagnostic plots
        Output: results/05_anomaly_detection/
 
 Stage 06 — Classification
-    └─ Labels each anomaly by type (constraint violation vs. multivariate outlier)
        Output: results/06_classification/
 
 Stage 07 — Saving
-    └─ Persists anomalies to anomalies.db, exports CSV and HTML report
        Output: results/07_saving/
 ```
 
@@ -144,44 +133,7 @@ Stage 07 — Saving
 
 ## Detection Methods
 
-### Clustered SVD (Primary)
-Fits a Truncated SVD within each operational cluster. Points with reconstruction error above the 95th percentile are flagged.
-
-- Captures mode-specific normal behaviour (e.g. zero power at berth is normal, not anomalous)
-- Fast (~0.2 s fit time)
-- **Recall on known violations: 62.5%**
-
-### Clustered Isolation Forest
-Tree-based outlier detection per operational cluster using `contamination=5%`.
-
-- No distance calculations — robust to high-dimensional data
-- **Recall on known violations: 54.2%**
-
-### Clustered Autoencoder (PyTorch)
-Neural network autoencoder per cluster:
-```
-Encoder: input_dim → 16 → 8 → latent_dim(3)
-Decoder: latent_dim → 8 → 16 → input_dim
-Loss: MSE reconstruction error
-```
-- Captures non-linear feature relationships
-- **Recall on known violations: 58.3%**
-
-### Ensemble (Majority Vote)
-A point is flagged as an anomaly only if **≥2 out of 3 methods** agree. This reduces false positives while maintaining sensitivity to true anomalies.
-
----
-
-## Results
-
-Full run with all three methods (50 AE epochs):
-
-| Method | Anomalies | Rate | Recall |
-|---|---|---|---|
-| SVD | 2,165 | 5.00% | 62.5% |
-| Isolation Forest | 2,165 | 5.00% | 54.2% |
-| Autoencoder | 2,165 | 5.00% | 58.3% |
-| **Ensemble (≥2/3)** | **1,723** | **3.98%** | **54.2%** |
+Stage 05 runs multiple unsupervised anomaly detection methods per operational cluster and combines their outputs into a majority-vote ensemble. The methods and their implementation details are not included in the public repository.
 
 ---
 
@@ -198,34 +150,24 @@ AnomalyDetection_V1/
 │   ├── run_pipeline.py              # Full pipeline orchestrator (CLI + programmatic)
 │   ├── stage_01_eda.py
 │   ├── stage_02_gen_metadata.py     # Generate per-vessel variable metadata CSVs
-│   ├── stage_03_cleaning.py
-│   ├── stage_04_clustering.py
-│   ├── stage_05_anomaly_detection.py
-│   ├── stage_06_classification.py
-│   ├── stage_07_saving.py
+│   ├── stage_03_cleaning.py         # [not included in public repo]
+│   ├── stage_04_clustering.py       # [not included in public repo]
+│   ├── stage_05_anomaly_detection.py # [not included in public repo]
+│   ├── stage_06_classification.py   # [not included in public repo]
+│   ├── stage_07_saving.py           # [not included in public repo]
 │   └── regen_metadata.py            # Standalone metadata regeneration helper
 │
 ├── src/
-│   ├── models/
-│   │   ├── clustered_svd_detector.py   # Primary SVD anomaly detector
-│   │   ├── svd_detector.py
-│   │   └── clustering.py               # K-Means operational mode clustering
-│   ├── database/
-│   │   └── anomaly_db.py               # SQLite interface (anomalies + missing records)
+│   ├── models/                      # [not included in public repo]
+│   ├── database/                    # [not included in public repo]
 │   ├── eda/
 │   │   └── eda_runner.py
-│   ├── classification/
-│   │   └── anomaly_classifier.py
-│   ├── saving/
-│   │   └── results_saver.py
-│   └── preprocessing/
-│       └── data_loader.py
+│   ├── classification/              # [not included in public repo]
+│   ├── saving/                      # [not included in public repo]
+│   └── preprocessing/               # [not included in public repo]
 │
 ├── benchmark/
-│   └── methods/
-│       ├── base_detector.py
-│       ├── isolation_forest.py         # ClusteredIsolationForest
-│       └── autoencoder.py              # ClusteredAutoencoder (PyTorch)
+│   └── methods/                     # [not included in public repo]
 │
 ├── results/                            # Generated outputs (gitignored)
 │   ├── 01_eda/
@@ -332,40 +274,22 @@ print(f"Ensemble anomalies: {results['05_detection']['n_anomalies']}")
 
 ## Output Artefacts
 
-### Diagnostic Plots (`results/04_anomaly_detection/plots/`)
+### Diagnostic Plots
 
-| File | Description |
-|---|---|
-| `score_distributions.png` | Anomaly score histograms per method with p95 threshold |
-| `recall_comparison.png` | Per-method and ensemble recall bar chart |
-| `method_agreement_heatmap.png` | Pairwise method agreement % |
-| `timeseries_all_features.png` | All 8 features over time with anomaly overlay |
-| `cluster_anomaly_scatter.png` | Key feature-pair scatters coloured by operational cluster |
-| `anomaly_feature_distributions.png` | Box plots: Normal vs Anomaly per feature |
-| `anomaly_sequence_structure.png` | Run-length spans, histogram, and rolling 1-hour anomaly rate |
-| `spatial_anomalies.png` | GPS vessel track coloured by cluster (left) and anomaly score (right) |
-| `anomaly_rate_by_cluster.png` | Anomaly count and rate per operational mode (bar + pie) |
-| `power_speed_anomalies.png` | Speed vs Power and Speed vs Fuel scatter with anomaly score intensity |
-
-Paths are under `results/05_anomaly_detection/plots/`.
+Stage 05 generates diagnostic plots under `results/05_anomaly_detection/plots/` covering anomaly score distributions, feature time-series overlays, GPS spatial tracks, cluster breakdowns, and power–speed relationships.
 
 ### Database Tables (`anomalies.db`)
 
 | Table | Contents |
 |---|---|
-| `anomalies` | All detected anomalies with scores, timestamps, feature values, and type classification |
-| `detection_runs` | Metadata per pipeline run (method, threshold, anomaly count, recall) |
+| `anomalies` | Detected anomalies with scores, timestamps, and feature values |
+| `detection_runs` | Metadata per pipeline run |
 | `missing_records` | Records removed during cleaning due to missing feature data |
 
 ---
 
 ## Evaluation Strategy
 
-Since no labelled anomaly data is available, evaluation uses:
-
-1. **Domain constraint recall** — checks if the model catches the 78 EDA-identified constraint violations (negative power, extreme trim, invalid draft)
-2. **Cross-method agreement** — anomalies detected by multiple independent methods are more likely to be genuine
-3. **Temporal clustering** — genuine sensor failures tend to be persistent; isolated single-point flags may be noise
-4. **Physical plausibility** — flagged points should deviate from the known power–speed relationship (r = 0.95)
+The system is fully unsupervised. Evaluation is based on domain constraint recall (known sensor violations), cross-method agreement, and physical plausibility checks against expected vessel operating relationships.
 
 ---
