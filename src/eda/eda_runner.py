@@ -2062,8 +2062,8 @@ class EDARunner:
             report_rows.append({
                 'section': 'D_wind_vs_power',
                 'n_valid': int(_mask_d.sum()),
-                'aws_p50': round(float(np.median(_aw)), 3),
-                'aws_p95': round(float(np.percentile(_aw, 95)), 3),
+                'aws_p50': round(float(np.median(_aw)), 3) if len(_aw) > 0 else None,
+                'aws_p95': round(float(np.percentile(_aw, 95)), 3) if len(_aw) > 0 else None,
                 'notes': 'residuals detrended against cubic speed-power fit',
             })
 
